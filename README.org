@@ -1,0 +1,25 @@
+Pulmometer - sense the "breaths" of gas meter and record to database
+
+Detect the perturbation of magnetic field around a natural gas meter,
+which corresponds to the movement of the lung-like bellows in the device.
+Count each full breath and record to remote database.
+
+* Hardware
+** ESP-WROOM-32
+[[https://www.amazon.com/gp/product/B07Q576VWZ/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1][MELIFE 2 Pack ESP32 ESP-32S Development Board 2.4GHz Dual-Mode WiFi + Bluetooth Dual Cores Microcontroller Processor Integrated with ESP32s Antenna RF AMP Filter AP STA for Arduino IDE]]
+[[https://www.flickr.com/photos/jgustavoam/40089095211/in/album-72157665409004158/][pinout]]
+
+** Adafruit LIS3DML breakout board
+[[https://www.adafruit.com/product/4479][Adafruit Triple-axis Magnetometer - LIS3MDL - STEMMA QT / Qwiic]]
+*** Software libraries
+https://github.com/adafruit/Adafruit_LIS3MDL
+https://libraries.io/platformio/Adafruit%20LIS3MDL
+platformio lib install 6931
+
+** Electrical Connection
+| LIS3MDL  | esp32         |
+|----------+---------------|
+| SDA /SDI | SDA / GPIO 21 |
+| SCL/ SCK | SCL / GPIO 22 |
+| GND      | GND           |
+| VCC      | 3.3v          |

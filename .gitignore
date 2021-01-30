@@ -1,0 +1,5 @@
+.clang_complete
+.ccls
+.ccls-cache
+.pio
+src/credentials.h
