@@ -35,7 +35,7 @@ static void record_to_database (int counter) {
 #define HYSTERESIS    0.3  // [0.0 .. 0.5)
 #define THRESH_LOW    (long)(MIN_MAGNITUDE + HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE))
 #define THRESH_HIGH   (long)(MAX_MAGNITUDE - HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE))
-static int zero_crossing (long val, bool & state) {
+static bool zero_crossing (long val, bool & state) {
     if ((state && val < THRESH_LOW) || (!state && val > THRESH_HIGH)) {
         state = !state;
         return true;
@@ -51,7 +51,9 @@ static long read_sensor_mag() {
     lis3mdl.read();  // get X Y and Z data at once
     long mag = (long)sqrt ((double)lis3mdl.x * (double)lis3mdl.x + (double)lis3mdl.y * (double)lis3mdl.y +
                            (double)lis3mdl.z * (double)lis3mdl.z);
-    // Serial.printf ("%6ld = |(%5d, %5d, %5d)|\n", mag, lis3mdl.x, lis3mdl.y, lis3mdl.z);
+#ifdef DEBUG
+    Serial.printf ("%6ld = |(%5d, %5d, %5d)|\n", mag, lis3mdl.x, lis3mdl.y, lis3mdl.z);
+#endif
     return mag;
 }
 
@@ -73,6 +75,9 @@ static void sensor_task (void * parameter) {
             xSemaphoreGive (xMutex);
         }
         state_set = true;
+#ifdef DEBUG
+        vTaskDelay (500 / portTICK_PERIOD_MS);
+#endif
     }
 }
 
