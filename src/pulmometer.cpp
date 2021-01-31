@@ -30,8 +30,8 @@ static void record_to_database (int counter) {
 }
 
 
-#define MAX_MAGNITUDE 9000
-#define MIN_MAGNITUDE 7500
+#define MAX_MAGNITUDE 8860
+#define MIN_MAGNITUDE 7310
 #define HYSTERESIS    0.3  // [0.0 .. 0.5)
 #define THRESH_LOW    (long)(MIN_MAGNITUDE + HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE))
 #define THRESH_HIGH   (long)(MAX_MAGNITUDE - HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE))
