@@ -4,7 +4,7 @@
 #include "credentials.h"
 
 
-#define SERVER "192.168.7.20:8086"  // address of influx database
+#define SERVER "192.168.7.207:8086"  // address of influx database
 static void record_to_database (int counter) {
     WiFiClient client;
     HTTPClient http;
