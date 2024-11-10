@@ -2,6 +2,7 @@
 #include <Adafruit_LIS3MDL.h>
 #include <ElegantOTA.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
 
 #define SERVER        "192.168.7.207:8086"  // address of influx database
@@ -47,33 +48,48 @@ static int read_sensor_mag () {
 static long  CALIBRATION_DURATION = 1000 * 60 * 5;  // five minutes
 static float HYSTERESIS           = 0.3;            // [0.0 .. 0.5)
 
-// set initial values, to be overwritten in calibration
-static int MAX_MAGNITUDE = INT_MIN;
-static int MIN_MAGNITUDE = INT_MAX;
-static int THRESH_LOW    = 0;
-static int THRESH_HIGH   = 0;
+static Preferences prefs;
 
-static void calibrate (long duration) {
-    long stop = millis() + duration;
+static class Thresholds {
+  public:
+    int min;
+    int max;
+    int check;
+
+    Thresholds()
+        : min (0)
+        , max (0)
+        , check (0) {}
+
+    void set_check (void) { check = min ^ max; }
+
+    bool is_valid (void) const { return check && check == (min ^ max); }
+} thresholds;
+
+static void
+calibrate (long duration) {
+    int  max_magnitude = INT_MIN;
+    int  min_magnitude = INT_MAX;
+    long stop          = millis() + duration;
     Serial.printf ("Calibrating...\n");
     Serial.printf ("%7s %7s %7s %7s\n", "time", "curr", "min", "max");
     Serial.printf ("%7s %7s %7s %7s\n", "-------", "-------", "-------", "-------");
     long now;
     while ((now = millis()) < stop) {
         int mag = read_sensor_mag();
-        if (mag < MIN_MAGNITUDE)
-            MIN_MAGNITUDE = mag;
-        if (mag > MAX_MAGNITUDE)
-            MAX_MAGNITUDE = mag;
-        Serial.printf ("\r%7ld %7d %7d %7d", stop - now, mag, MIN_MAGNITUDE, MAX_MAGNITUDE);
+        if (mag < min_magnitude)
+            min_magnitude = mag;
+        if (mag > max_magnitude)
+            max_magnitude = mag;
+        Serial.printf ("\r%7ld %7d %7d %7d", stop - now, mag, min_magnitude, max_magnitude);
     }
-    THRESH_LOW  = (int)(MIN_MAGNITUDE + HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE));
-    THRESH_HIGH = (int)(MAX_MAGNITUDE - HYSTERESIS * (MAX_MAGNITUDE - MIN_MAGNITUDE));
-    Serial.printf ("\nDone.  MIN = %d, MAX = %d\n", MIN_MAGNITUDE, MAX_MAGNITUDE);
+    thresholds.min = (int)(min_magnitude + HYSTERESIS * (max_magnitude - min_magnitude));
+    thresholds.max = (int)(max_magnitude - HYSTERESIS * (max_magnitude - min_magnitude));
+    thresholds.set_check();
 }
 
 static bool zero_crossing (int val, bool & state) {
-    if ((state && val < THRESH_LOW) || (!state && val > THRESH_HIGH)) {
+    if ((state && val < thresholds.min) || (!state && val > thresholds.max)) {
         state = !state;
         return true;
     }
@@ -143,15 +159,22 @@ void setup () {
         String html = "";
         html += "<html>";
         html += WIFI_HOSTNAME;
-        html += "<br/>MIN = " + String (MIN_MAGNITUDE) + "; MAX = " + String (MAX_MAGNITUDE) +
-                "; THRESH_LOW = " + String (THRESH_LOW) + "; THRESH_HIGH = " + String (THRESH_HIGH);
-        html += "<br/><a href='/reset'>Reset</a><br/><a href='/update'>Update</a></html>";
+        html += "<br/>Thresholds: min = " + String (thresholds.min) + "; max = " + String (thresholds.max) +
+                "; check = " + String (thresholds.check);
+        html += "<br/><a href='/reset'>Reset</a><br/><a href='/calibrate'>Calibrate</a><br/><a href='/update'>Update</a></html>";
         DO_SEND (200, "text/html", html);
     });
 
     server.on ("/reset", [] (REQUEST_ARG) {
         DO_SEND (200, "text/html", "<html><head><meta http-equiv=\"Refresh\" content=\"0; url='/'\"/></head></html>");
         ESP.restart();
+    });
+
+    server.on ("/calibrate", [] (REQUEST_ARG) {
+        calibrate (CALIBRATION_DURATION);
+        prefs.putBytes ("thresholds", reinterpret_cast<byte *> (&thresholds), sizeof (thresholds));
+        Serial.printf ("\nThresholds: min = %d, max = %d, check = %d\n", thresholds.min, thresholds.max, thresholds.check);
+        DO_SEND (200, "text/html", "<html><head><meta http-equiv=\"Refresh\" content=\"0; url='/'\"/></head></html>");
     });
 
     ElegantOTA.begin (&server);  // Start ElegantOTA
@@ -172,7 +195,13 @@ void setup () {
                              false,  // don't latch
                              true);  // enabled!
 
-    calibrate (CALIBRATION_DURATION);
+    prefs.begin ("calibration");  // namespace
+    prefs.getBytes ("thresholds", &thresholds, sizeof (thresholds));
+    if (!thresholds.is_valid()) {
+        calibrate (CALIBRATION_DURATION);
+        prefs.putBytes ("thresholds", reinterpret_cast<byte *> (&thresholds), sizeof (thresholds));
+    }
+    Serial.printf ("\nThresholds: min = %d, max = %d, check = %d\n", thresholds.min, thresholds.max, thresholds.check);
 
     xMutex = xSemaphoreCreateMutex();
     xTaskCreate (sensor_task, "Sensor Task", 4096, NULL, 1, NULL);
